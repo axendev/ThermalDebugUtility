@@ -31,6 +31,10 @@ agc_regs_column = [
 
     [sg.Text("CC_DEBUG (hex):"),
      sg.Column([[sg.In('0', size=(20,1), key='-CUSTOM INPUT-'), sg.Button('Set', key='-CUSTOM SET-', enable_events=True)]])],
+
+    [sg.Text("TEST_VEC_IN (hex):"),
+     sg.Column([[sg.In('0', size=(20,1), key='-TEST_VEC_IN INPUT-'), sg.Button('Set', key='-TEST_VEC_IN SET-', enable_events=True)]])],
+
     [sg.Sizer(h_pixels = 100, v_pixels = 20)],
     [sg.Checkbox('Test mode', enable_events=True, key='-TEST MODE-')],
     [sg.Checkbox('AGC', enable_events=True, key='-AGC EN-')],
@@ -101,9 +105,12 @@ while True:
         nshare = control['NSHARE']
         cc_debug = control['CC_DEBUG']
 
-        calib_reg = device.get_calib_params()
-        calib = calib_reg['Calibration']
-        correct = calib_reg['Correction']
+        calib_params = device.get_calib_params()
+        calib = calib_params['Calibration']
+        correct = calib_params['Correction']
+        calib_reg = device.get_calib_reg(False)
+
+
 
         window['-LAST PIX-'].update(str(last_pix))
 
@@ -112,13 +119,12 @@ while True:
         window['-COLOR-'].update(color)
         window['-FILTER-'].update(filter_en)
         window['-NSHARE INPUT-'].update(nshare)
-        window['-CUSTOM INPUT-'].update(cc_debug)
+        window['-CUSTOM INPUT-'].update(f'{cc_debug:X}')
+        window['-TEST_VEC_IN INPUT-'].update(f'{calib_reg:X}')
 
         window['-CALIB-'].update(color)
         window['-CORRECT-'].update(filter_en)
 
-
-        window['-NSHARE INPUT-'].update(nshare)
 
     elif event == '-TEST MODE-':
         device.set_test_mode(bool(values['-TEST MODE-']))
@@ -138,12 +144,19 @@ while True:
         print('FILTER')
 
     elif event == '-CALIB-':
-        device.set_calib_state(bool(values['-CALIB-']))
         print('CALIB')
 
+        device.set_calib_state(bool(values['-CALIB-']))
+
+        calib_reg = device.get_calib_reg(False)
+        window['-TEST_VEC_IN INPUT-'].update(f'{calib_reg:X}')
+
     elif event == '-CORRECT-':
-        device.set_correct_state(bool(values['-CORRECT-']))
         print('CORRECT')
+        device.set_correct_state(bool(values['-CORRECT-']))
+
+        calib_reg = device.get_calib_reg(False)
+        window['-TEST_VEC_IN INPUT-'].update(f'{calib_reg:X}')
 
     elif event == '-NSHARE SET-':
         value = -1
@@ -151,11 +164,12 @@ while True:
         try:
             value = int(values['-NSHARE INPUT-'])
         except Exception as e:
-            print('Custom field is not a decimal')
+            print('NSHARE field is not a decimal')
+            log(f'Error: NSHARE field is not a decimal')
 
         if value > 0xFFFF:
             log(f'NSHARE value too much: {value}')
-        else:
+        elif value != -1:
             print('NSHARE SET: ' + str(value))
             device.set_nshare(value)
 
@@ -166,12 +180,34 @@ while True:
             value = int(values['-CUSTOM INPUT-'], 16)
         except Exception as e:
             print('Custom field is not a hex')
+            log(f'Error: CC_DEBUG field is not a hex')
 
         if value > 0xFF:
             log(f'CC_DEBUG value too much: {value}')
-        else:
+        elif value != -1:
             print('CC_DEBUG SET: ' + str(value))
             device.set_cc_debug(value)
+
+    elif event == '-TEST_VEC_IN SET-':
+        value = -1
+
+        try:
+            value = int(values['-TEST_VEC_IN INPUT-'], 16)
+        except Exception as e:
+            print('TEST_VEC_IN field is not a hex')
+            log(f'Error: TEST_VEC_IN field is not a hex')
+
+        if value > 0xFF:
+            log(f'TEST_VEC_IN value too much: {value}')
+        elif value != -1:
+            print('TEST_VEC_IN SET: ' + str(value))
+            device.set_calib_reg(value)
+
+            calib_params = device.get_calib_params(False)
+            calib = calib_params['Calibration']
+            correct = calib_params['Correction']
+            window['-CALIB-'].update(color)
+            window['-CORRECT-'].update(filter_en)
 
     elif event == '-ADC HIF-':
         device.adc_set_hif(bool(values['-ADC HIF-']))

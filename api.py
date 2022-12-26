@@ -154,13 +154,24 @@ class BoardAPI:
 
         self.__set_calib_reg()
 
-    def get_calib_params(self):
-        self.__get_calib_reg()
+    def get_calib_params(self, do_reload=True):
+        if do_reload:
+            self.__get_calib_reg()
 
         params = {'Calibration': (self.control_reg >> CALIB_CALIB_BIT_POS) & 1,
                   'Correction': (self.control_reg >> CALIB_CORRECT_BIT_POS) & 1}
 
         return params
+
+    def set_calib_reg(self, value):
+        self.calib_reg = value
+        self.__set_calib_reg()
+
+    def get_calib_reg(self, do_reload=True):
+        if do_reload:
+            self.__get_calib_reg()
+
+        return self.calib_reg
 
     def set_custom_AGC_reg(self, reg, value):
         self.port.write(f'WA {reg} {hex(value)}\r\n'.encode())
