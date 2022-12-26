@@ -10,9 +10,13 @@ LE = '\r\n'
 READ_CHUNK = 1000
 
 AGC_BIT_POS = 16
-AGC_MANUAL_UMIN_BIT_POS = 18
+AGC_COLOR_BIT_POS = 19
+AGC_FILTER_BIT_POS = 20
 TEST_MODE_BIT_POS = 21
-AGC_FILTER_BIT_POS = 22
+CC_DEBUG_SHIFT_POS = 24
+
+CALIB_CALIB_BIT_POS = 0
+CALIB_CORRECT_BIT_POS = 1
 
 CMD_READ_ADC = 'RA 8\r\n'
 CMD_ADC_FRMT_OFFSET = 'WR 0x0009 0x01\r\n'
@@ -33,6 +37,7 @@ class BoardAPI:
     recv_delay = 0
     log_func = None
     control_reg = 0
+    calib_reg = 0
 
 
     def __init__(self, log_func=None):
@@ -72,30 +77,6 @@ class BoardAPI:
         val = recv.decode().split('value ')[-1].strip()
         return val
 
-    def get_info_agc_lvls(self):
-        self.port.write('RA 6\r\n'.encode())
-        sleep(self.recv_delay)
-        recv = self.port.read(READ_CHUNK)
-        self.log_func('Received: ' + recv.decode())
-        print('Recv: ' + str(recv))
-
-        val = recv.decode().split('value ')[-1].strip()
-        umax = int(val, 16) >> 16
-        umin = int(val, 16) & 0xFFFF
-        return (umax, umin)
-
-    def get_brcr(self):
-        self.port.write('RA 7\r\n'.encode())
-        sleep(self.recv_delay)
-        recv = self.port.read(READ_CHUNK)
-        self.log_func('Received: ' + recv.decode())
-        print('Recv: ' + str(recv))
-
-        val = recv.decode().split('value ')[-1].strip()
-        br = int(val, 16) >> 16
-        cr = int(val, 16) & 0xFFFF
-        return (br, cr)
-
     def set_test_mode(self, state):
         if state:
             self.control_reg |= 1 << TEST_MODE_BIT_POS
@@ -112,19 +93,19 @@ class BoardAPI:
 
         self.__set_control_reg()
 
-    def set_agc_manual_u_state(self, state):
-        if state:
-            self.control_reg |= 1 << AGC_MANUAL_UMIN_BIT_POS
-        else:
-            self.control_reg &= ~(1 << AGC_MANUAL_UMIN_BIT_POS)
-
-        self.__set_control_reg()
-
     def set_filter_state(self, state):
         if state:
             self.control_reg |= (1 << AGC_FILTER_BIT_POS)
         else:
             self.control_reg &= ~(1 << AGC_FILTER_BIT_POS)
+
+        self.__set_control_reg()
+
+    def set_color_state(self, state):
+        if state:
+            self.control_reg |= (1 << AGC_COLOR_BIT_POS)
+        else:
+            self.control_reg &= ~(1 << AGC_COLOR_BIT_POS)
 
         self.__set_control_reg()
 
@@ -134,33 +115,52 @@ class BoardAPI:
 
         self.__set_control_reg()
 
-    def get_contr_agc_lvls(self):
-        self.port.write('RA 2\r\n'.encode())
-        sleep(self.recv_delay)
-        recv = self.port.read(READ_CHUNK)
-        self.log_func('Received: ' + recv.decode())
-        print('Recv: ' + str(recv))
+    def set_cc_debug(self, value):
+        self.control_reg &= 0x00FFFFFF
+        self.control_reg |= ((value << CC_DEBUG_SHIFT_POS) & 0xFF000000)
 
-        val = recv.decode().split('value ')[-1].strip()
-        umax = int(val, 16) >> 16
-        umin = int(val, 16) & 0xFFFF
-        return (umax, umin)
-
-    def set_contr_agc_lvls(self, umin, umax):
-        reg = umin | (umax << 16)
-        self.port.write(f'WA 2 {hex(reg)}\r\n'.encode())
-        sleep(self.recv_delay)
-        recv = self.port.read(READ_CHUNK)
-        self.log_func('Received: ' + recv.decode())
-        print('Recv: ' + str(recv))
+        self.__set_control_reg()
 
     def get_agc_state(self):
         self.__get_control_reg()
         return (self.control_reg >> AGC_BIT_POS) & 1
 
-    def get_agc_manual_u_state(self):
+
+    def get_control_params(self):
         self.__get_control_reg()
-        return (self.control_reg >> AGC_MANUAL_UMIN_BIT_POS) & 1
+
+        params = {'AGC': (self.control_reg >> AGC_BIT_POS) & 1,
+                  'Color': (self.control_reg >> AGC_COLOR_BIT_POS) & 1,
+                  'Filter': (self.control_reg >> AGC_FILTER_BIT_POS) & 1,
+                  'NSHARE': (self.control_reg & 0xFFFF),
+                  'Test mode': (self.control_reg >> TEST_MODE_BIT_POS) & 1,
+                  'CC_DEBUG': ((self.control_reg >> CC_DEBUG_SHIFT_POS ) & 0xFF)}
+
+        return params
+
+    def set_calib_state(self, state):
+        if state:
+            self.calib_reg|= (1 << CALIB_CALIB_BIT_POS)
+        else:
+            self.calib_reg &= ~(1 << CALIB_CALIB_BIT_POS)
+
+        self.__set_calib_reg()
+
+    def set_correct_state(self, state):
+        if state:
+            self.calib_reg|= (1 << CALIB_CORRECT_BIT_POS)
+        else:
+            self.calib_reg &= ~(1 << CALIB_CORRECT_BIT_POS)
+
+        self.__set_calib_reg()
+
+    def get_calib_params(self):
+        self.__get_calib_reg()
+
+        params = {'Calibration': (self.control_reg >> CALIB_CALIB_BIT_POS) & 1,
+                  'Correction': (self.control_reg >> CALIB_CORRECT_BIT_POS) & 1}
+
+        return params
 
     def set_custom_AGC_reg(self, reg, value):
         self.port.write(f'WA {reg} {hex(value)}\r\n'.encode())
@@ -168,17 +168,6 @@ class BoardAPI:
         recv = self.port.read(READ_CHUNK)
         self.log_func('Received: ' + recv.decode())
         print('Recv: ' + str(recv))
-
-    def get_control_params(self):
-        self.__get_control_reg()
-
-        params = {'AGC': (self.control_reg >> AGC_BIT_POS) & 1,
-                  'AGC Manual': (self.control_reg >> AGC_MANUAL_UMIN_BIT_POS) & 1,
-                  'Filter': (self.control_reg >> AGC_FILTER_BIT_POS) & 1,
-                  'NSHARE': (self.control_reg & 0xFFFF),
-                  'Test mode': (self.control_reg >> TEST_MODE_BIT_POS) & 1}
-
-        return params
 
     def __get_control_reg(self):
         self.port.write('RA 0\r\n'.encode())
@@ -193,6 +182,25 @@ class BoardAPI:
 
     def __set_control_reg(self):
         self.port.write(f'WA 0 {hex(self.control_reg)}\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+
+    def __get_calib_reg(self):
+        self.port.write('RA 10\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+        val = recv.decode().split('value ')[-1].strip()
+        self.calib_reg = int(val, 16)
+
+
+    def __set_calib_reg(self):
+        self.port.write(f'WA 10 {hex(self.calib_reg)}\r\n'.encode())
         sleep(self.recv_delay)
         recv = self.port.read(READ_CHUNK)
         self.log_func('Received: ' + recv.decode())
