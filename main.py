@@ -122,8 +122,8 @@ while True:
         window['-CUSTOM INPUT-'].update(f'{cc_debug:X}')
         window['-TEST_VEC_IN INPUT-'].update(f'{calib_reg:X}')
 
-        window['-CALIB-'].update(color)
-        window['-CORRECT-'].update(filter_en)
+        window['-CALIB-'].update(calib)
+        window['-CORRECT-'].update(correct)
 
 
     elif event == '-TEST MODE-':
@@ -206,8 +206,8 @@ while True:
             calib_params = device.get_calib_params(False)
             calib = calib_params['Calibration']
             correct = calib_params['Correction']
-            window['-CALIB-'].update(color)
-            window['-CORRECT-'].update(filter_en)
+            window['-CALIB-'].update(calib)
+            window['-CORRECT-'].update(correct)
 
     elif event == '-ADC HIF-':
         device.adc_set_hif(bool(values['-ADC HIF-']))
