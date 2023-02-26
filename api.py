@@ -326,6 +326,106 @@ class BoardAPI:
         self.log_func('Received: ' + recv.decode())
         print('Recv: ' + str(recv))
 
+    def adc_enable_pattern(self, state):
+        self.log_func('adc_enable_pattern')
+        reg = 0
+        if state:
+            reg |= (1 << 1)
+
+        self.port.write(f'WR 0x06 {hex(reg)}\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+    def adc_set_pattern(self, pattern):
+        self.log_func('adc_set_pattern: ' + pattern)
+        reg = 0
+        if pattern == 'normal':
+            reg = 0
+        elif pattern == 'zeros':
+            reg = 1
+        elif pattern == 'ones':
+            reg = 2
+        elif pattern == 'toggle':
+            reg = 3
+        elif pattern == 'ramp':
+            reg = 4
+        elif pattern == 'random':
+            reg = 8
+        elif pattern == 'sine':
+            reg = 9
+
+
+        self.port.write(f'WR 0x0A {hex(reg)}\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+    def adc_get_pattern(self):
+        self.log_func('adc_get_hif')
+        self.port.write('RR 0x0A\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+        val = int(recv.decode().split('value ')[-1].strip(), 16)
+
+        pattern = 'normal'
+
+        if val == 0:
+            pattern = 'normal'
+        elif val == 1:
+            pattern = 'zeros'
+        elif val == 2:
+            pattern = 'ones'
+        elif val == 3:
+            pattern = 'toggle'
+        elif val == 4:
+            pattern = 'ramp'
+        elif val == 8:
+            pattern = 'random'
+        elif val == 9:
+            pattern = 'sine'
+
+        return pattern
+
+    def adc_set_dataformat(self, format):
+        self.log_func('adc_set_dataformat: ' + format)
+        reg = 0
+        if format == 'offset':
+            reg = 1
+        elif format == 'compl':
+            reg = 0
+
+        self.port.write(f'WR 0x09 {hex(reg)}\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+
+    def adc_get_dataformat(self):
+        self.log_func('adc_get_hif')
+        self.port.write('RR 0x09\r\n'.encode())
+        sleep(self.recv_delay)
+        recv = self.port.read(READ_CHUNK)
+        self.log_func('Received: ' + recv.decode())
+        print('Recv: ' + str(recv))
+
+        val = int(recv.decode().split('value ')[-1].strip(), 16)
+
+        format = 'compl'
+
+        if (val & 0x01) == 0:
+            format = 'compl'
+        elif (val & 0x01) == 1:
+            format = 'offset'
+
+        return format
+
     def write_pattern(self, data):
         msb = hex(data >> 6)
         lsb = hex((data << 2) & 0xFF)
